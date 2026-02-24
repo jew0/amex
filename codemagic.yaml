@@ -1,6 +1,6 @@
 workflows:
   ios-ipa-build:
-    name: iOS IPA (no codesign)
+    name: iOS IPA (AltStore / no codesign)
     max_build_duration: 60
     instance_type: mac_mini_m1
 
@@ -9,16 +9,39 @@ workflows:
       xcode: latest
 
     scripts:
+      # 1️⃣ Get dependencies
       - flutter pub get
 
-      - flutter build ios --release --no-codesign
+      # 2️⃣ Ensure CocoaPods is installed and up-to-date
+      - name: Install CocoaPods
+        script: |
+          sudo gem install cocoapods -v 1.12.1
+          pod repo update
 
+      # 3️⃣ Clean previous builds
+      - name: Clean build
+        script: flutter clean
+
+      # 4️⃣ Build iOS app release without codesign
+      - name: Build iOS release
+        script: flutter build ios --release --no-codesign -v
+
+      # 5️⃣ Verify the app was built
+      - name: Check Runner.app
+        script: |
+          if [ ! -d build/ios/iphoneos/Runner.app ]; then
+            echo "Error: Runner.app not found!"
+            exit 1
+          fi
+
+      # 6️⃣ Create IPA manually (AltStore compatible)
       - name: Create IPA manually
         script: |
           cd build/ios/iphoneos
           mkdir -p Payload
           mv Runner.app Payload/
           zip -r FlutterIpaExport.ipa Payload
+          echo "IPA created at $(pwd)/FlutterIpaExport.ipa"
 
     artifacts:
       - build/ios/iphoneos/FlutterIpaExport.ipa
